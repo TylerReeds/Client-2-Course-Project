@@ -166,10 +166,10 @@ public class Client2 : MonoBehaviour
     private void SendPositionIfMoved()
     {
         Vector3 currentPos = Client2Cube.transform.position;
-        Vector3 currentVelo = (currentPos - lastPositionClient2) / networkUpdateRate;
 
         if (currentPos != lastPositionClient2)
         {
+            Vector3 currentVelo = (currentPos - lastPositionClient2) / networkUpdateRate;
             lastPositionClient2 = currentPos;
             byte[] data = new byte[24];
             //https://learn.microsoft.com/en-us/dotnet/api/system.bitconverter.getbytes?view=net-9.0
@@ -194,8 +194,10 @@ public class Client2 : MonoBehaviour
         Buffer.BlockCopy(UDPBuffer, 0, pos, 0, rec);
 
         Vector3 recPos = new Vector3(pos[0], pos[1], pos[2]);
+        Vector3 recVelo = new Vector3(pos[3], pos[4], pos[5]);
+
         positionQueue.Enqueue(recPos);
-        Debug.Log("Client 2 Received Position from Client 1: " + recPos);
+        Debug.Log("Client 2 Received Position: " + recPos + " and Velocity: " + recVelo + " from Client 1");
 
         //Continue receiving data
         UDPClient2.BeginReceiveFrom(UDPBuffer, 0, UDPBuffer.Length, 0, ref serverEndPoint, new AsyncCallback(ReceiveUDPCallback), UDPClient2);
