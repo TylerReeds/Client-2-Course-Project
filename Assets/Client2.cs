@@ -34,6 +34,11 @@ public class Client2 : MonoBehaviour
 
     private static Queue<Vector3> positionQueue = new Queue<Vector3>(); //Queue for the positions 
 
+    //For Dead Reckoning 
+    private static Vector3 predictedPosClient1;
+    private static Vector3 veloClient1;
+    private static float lastRecTimeClient1;
+
     private void Start()
     {
         Client1Cube = GameObject.Find("Client1Cube");
@@ -89,15 +94,17 @@ public class Client2 : MonoBehaviour
 
         }
 
-        //Processes Position Queue to move the cube
         if (positionQueue.Count > 0)
         {
             Vector3 newPos = positionQueue.Dequeue();
+
             if (Client1Cube != null)
             {
-                Client1Cube.transform.position = newPos; //Updates Cube position
+                Client1Cube.transform.position = newPos;
+                Debug.Log("Updated Client 1 Cube's position: " + Client1Cube.transform.position);
             }
         }
+
         chatText.text = msg;
     }
 
@@ -162,7 +169,7 @@ public class Client2 : MonoBehaviour
         }
     }
 
-    //Position Updates
+    //Position and Velocity Updates: 
     private void SendPositionIfMoved()
     {
         Vector3 currentPos = Client2Cube.transform.position;
@@ -190,14 +197,31 @@ public class Client2 : MonoBehaviour
     {
         int rec = UDPClient2.EndReceiveFrom(result, ref serverEndPoint);
 
-        float[] pos = new float[rec / 4];
-        Buffer.BlockCopy(UDPBuffer, 0, pos, 0, rec);
+        if (rec > 0)
+        {
+            float[] pos = new float[rec / 4];
+            Buffer.BlockCopy(UDPBuffer, 0, pos, 0, rec);
 
-        Vector3 recPos = new Vector3(pos[0], pos[1], pos[2]);
-        Vector3 recVelo = new Vector3(pos[3], pos[4], pos[5]);
+            Vector3 recPos = new Vector3(pos[0], pos[1], pos[2]);
+            Vector3 recVelo = new Vector3(pos[3], pos[4], pos[5]);
 
-        positionQueue.Enqueue(recPos);
-        Debug.Log("Client 2 Received Position: " + recPos + " and Velocity: " + recVelo + " from Client 1");
+            Debug.Log("Received Position: " + recPos + " and Velocity: " + recVelo);
+
+            //To use the main thread (mainly for time calculation) 
+            UnityMainThreadDispatcher.Enqueue(() =>
+            {
+                //Calculate time difference 
+                float timeDelta = Time.time - lastRecTimeClient1;
+                lastRecTimeClient1 = Time.time;
+
+                //Predict Position
+                predictedPosClient1 = recPos + recVelo * timeDelta;
+                veloClient1 = recVelo;
+
+                positionQueue.Enqueue(predictedPosClient1);
+                Debug.Log("Predicted Position: " + predictedPosClient1 + " and Velocity: " + veloClient1);
+            });
+        }
 
         //Continue receiving data
         UDPClient2.BeginReceiveFrom(UDPBuffer, 0, UDPBuffer.Length, 0, ref serverEndPoint, new AsyncCallback(ReceiveUDPCallback), UDPClient2);
