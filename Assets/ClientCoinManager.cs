@@ -8,26 +8,28 @@ using System.Text;
 
 public class ClientCoinManager : MonoBehaviour
 {
-    public GameObject coinPrefab; // Assign this in the Inspector
+    public GameObject coinPrefab;
 
-    private static Socket UDPClient2;
+    private static Socket UDPClient1;
     private static EndPoint serverEndPoint;
     private static byte[] UDPBuffer = new byte[1024];
 
     void Start()
     {
-        UDPClient2 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        UDPClient2.Bind(new IPEndPoint(IPAddress.Any, 0)); 
+        UDPClient1 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        UDPClient1.Bind(new IPEndPoint(IPAddress.Any, 0));
 
         serverEndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 8889);
 
+        // This makes sure the client is connected to the server so the server can recieve the info from the clients
+
         // Start receiving coin data from the server
-        UDPClient2.BeginReceiveFrom(UDPBuffer, 0, UDPBuffer.Length, 0, ref serverEndPoint, new AsyncCallback(ReceiveUDPCallback), UDPClient2);
+        UDPClient1.BeginReceiveFrom(UDPBuffer, 0, UDPBuffer.Length, 0, ref serverEndPoint, new AsyncCallback(ReceiveUDPCallback), UDPClient1);
     }
 
     private void ReceiveUDPCallback(IAsyncResult result)
     {
-        int receivedDataLength = UDPClient2.EndReceiveFrom(result, ref serverEndPoint);
+        int receivedDataLength = UDPClient1.EndReceiveFrom(result, ref serverEndPoint);
 
         if (receivedDataLength > 0)
         {
@@ -48,7 +50,7 @@ public class ClientCoinManager : MonoBehaviour
         }
 
         // Continue receiving data
-        UDPClient2.BeginReceiveFrom(UDPBuffer, 0, UDPBuffer.Length, 0, ref serverEndPoint, new AsyncCallback(ReceiveUDPCallback), UDPClient2);
+        UDPClient1.BeginReceiveFrom(UDPBuffer, 0, UDPBuffer.Length, 0, ref serverEndPoint, new AsyncCallback(ReceiveUDPCallback), UDPClient1);
     }
 
     public void InstantiateCoin(Vector3 position)
