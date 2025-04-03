@@ -5,13 +5,17 @@ using System.Net.Sockets;
 using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEditor.VersionControl;
+using UnityEngine.SocialPlatforms.Impl;
+
+
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
 public class Client2 : MonoBehaviour
 {
-    private static Socket TCPClient2 = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+    public static Socket TCPClient2 = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
     public static Socket UDPClient2 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
     private static byte[] TCPBuffer = new byte[1024];
     private static byte[] UDPBuffer = new byte[1024];
@@ -25,19 +29,27 @@ public class Client2 : MonoBehaviour
 
     public InputField chatInput;
     public InputField serverIPInput;
+    public InputField clientNameInput;
     public Text chatText;
     public static string msg;
     public GameObject popup;
     public static bool SendPos = false;
     public Button sendButton;
     public Button connectButton;
+    public Button nameButton;
 
     private static Queue<Vector3> positionQueue = new Queue<Vector3>(); //Queue for the positions 
+
+    private static float Client2Score;
 
     //For Dead Reckoning 
     private static Vector3 predictedPosClient1;
     private static Vector3 veloClient1;
     private static float lastRecTimeClient1;
+
+    //Leaderboard
+    public Text leaderboardVals;
+    public static string leaderboardText;
 
     private void Start()
     {
@@ -49,6 +61,8 @@ public class Client2 : MonoBehaviour
         connectButton.onClick.AddListener(ConnectToServer);
 
         sendButton.onClick.AddListener(SendChatMessageFromUI);
+
+        nameButton.onClick.AddListener(SendName);
     }
 
     //Connects to server once connect button is clicked
@@ -105,7 +119,15 @@ public class Client2 : MonoBehaviour
             }
         }
 
+        if(Client2Score != cube.client2Score)
+        {
+            Client2Score = cube.client2Score;
+            SendClientScore();
+        }
+        
+
         chatText.text = msg;
+        leaderboardVals.text = leaderboardText;
     }
 
     //Chat: 
@@ -115,8 +137,24 @@ public class Client2 : MonoBehaviour
         int rec = socket.EndReceive(result);
 
         string message = Encoding.ASCII.GetString(TCPBuffer, 0, rec);
-        msg = message;
-        Debug.Log("Received Chat Message From Client 1: " + message);
+
+        if (message.Contains("LeaderboardVals:"))
+        {
+            string[] s = message.Split(' ');
+            List<string> joinedString = new List<string>();
+
+            for (int i = 0; i < s.Length - 1; i++)
+            {
+                joinedString.Add(s[i + 1]);
+            }
+
+            leaderboardText = string.Join("", joinedString);
+        }
+        else
+        {
+            Debug.Log("Received Chat Message From Client 1: " + message);
+            msg = message;
+        }
 
         socket.BeginReceive(TCPBuffer, 0, TCPBuffer.Length, 0, new AsyncCallback(ReceiveTCPCallback), socket);
     }
@@ -290,6 +328,60 @@ public class Client2 : MonoBehaviour
         {
             UDPClient2.Close();
             Debug.Log("UDP Connection Closed");
+        }
+    }
+
+    public void SendName()
+    {
+        string name = clientNameInput.text;
+
+        //Checks if TCP Client is Valid
+        if (TCPClient2 != null && TCPClient2.Connected)
+        {
+            if (!string.IsNullOrEmpty(name))
+            {
+                byte[] nameBytes = Encoding.ASCII.GetBytes($"Name: {name}");
+                try
+                {
+                    TCPClient2.BeginSend(nameBytes, 0, nameBytes.Length, 0, new AsyncCallback(SendTCPCallback), TCPClient2);
+                }
+                catch (ObjectDisposedException) //https://learn.microsoft.com/en-us/dotnet/api/system.objectdisposedexception?view=net-9.0
+                {
+                    Debug.LogWarning("Socket has been disposed. Cannot send message.");
+                }
+            }
+        }
+
+        else
+        {
+            Debug.LogWarning("TCP Socket is not connected. Cannot send message.");
+        }
+    }
+
+    private void SendClientScore()
+    {
+        string scoreAsString = Client2Score.ToString();
+
+        //Checks if TCP Client is Valid
+        if (TCPClient2 != null && TCPClient2.Connected)
+        {
+            if (!string.IsNullOrEmpty(scoreAsString))
+            {
+                byte[] scoreBytes = Encoding.ASCII.GetBytes($"Score: {scoreAsString}");
+                try
+                {
+                    TCPClient2.BeginSend(scoreBytes, 0, scoreBytes.Length, 0, new AsyncCallback(SendTCPCallback), TCPClient2);
+                }
+                catch (ObjectDisposedException) //https://learn.microsoft.com/en-us/dotnet/api/system.objectdisposedexception?view=net-9.0
+                {
+                    Debug.LogWarning("Socket has been disposed. Cannot send message.");
+                }
+            }
+        }
+
+        else
+        {
+            Debug.LogWarning("TCP Socket is not connected. Cannot send message.");
         }
     }
 }
